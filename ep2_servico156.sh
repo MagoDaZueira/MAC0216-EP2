@@ -10,12 +10,14 @@
 ##################################################################
 
 #!/bin/bash
-
 if [ $# != 0 ]; then
+    mkdir Dados
+
     while read -r line
     do
         wget -nv $line -P ./Dados
     done < $1
+
 
     cd Dados
     for i in $( ls ); do
