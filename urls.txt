@@ -1,0 +1,2 @@
+http://dados.prefeitura.sp.gov.br/dataset/0aecfa2b-aa3a-40d4-8183-0d4351b7fd0a/resource/3c12fe0a-ec4f-4a20-a987-dd177330f4ce/download/arquivofinal3tri2024.csv
+http://dados.prefeitura.sp.gov.br/dataset/0aecfa2b-aa3a-40d4-8183-0d4351b7fd0a/resource/9b42cbd8-3d2e-4c9f-993e-6c49e62f1818/download/arquivofinal3tri2021.csv
