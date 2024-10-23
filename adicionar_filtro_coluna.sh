@@ -1,32 +1,46 @@
 cd Dados
-head -n 1 arquivocompleto.csv | tr ';' '\n' > filtro.txt
+arquivo_selecionado="arquivocompleto.csv"
 
-arquivo_selecionado="arquivofinal3tri2021.csv"
-counter=1
+# Create an array directly from the CSV header (first line)
+OLD_IFS=$IFS  # Store the original value of IFS
+IFS=';' read -r -a columns < <(head -n 1 arquivocompleto.csv)
 
-while read -r line 
-do
-    echo "$counter) $line"
-    let counter=$counter+1
-done < filtro.txt
+# Display the options using 'select'
+echo "Select a column:"
+select column in "${columns[@]}"; do
+    if [[ -n "$column" ]]; then
+        echo "You selected column $REPLY: $column"
+        break
+    else
+        echo "Invalid selection. Please try again."
+    fi
+done
 
-read input
-OLD_IFS=$IFS  # Armazenar o valor original do IFS
-IFS=';'  # Definir IFS para separar por ponto e vírgula
+# Now we use $REPLY as the column number selected by the user
+IFS=';'  # Set IFS to semicolon
 
-# Ler as linhas do arquivo selecionado, ignorando o cabeçalho
-tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
-    # Usar cut para pegar a coluna selecionada
-    echo "$line" | cut -d';' -f"$input"
-done > valores.txt  # Redirecionar a saída para valores.txt
-
-# Restaurar o valor original do IFS
+# Restore the original IFS value
 IFS=$OLD_IFS
+# Read the lines from the selected file, ignoring the header
+tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
+    # Use cut to extract the selected column
+    echo "$line" | cut -d';' -f"$REPLY"
+done > valores.txt  # Redirect the output to valores.txt
 
-# Exibir os valores únicos na coluna selecionada
+
+# Display the unique values in the selected column
 counter=1
-echo "Valores únicos na coluna selecionada:"
-sort valores.txt | uniq | while read -r valor; do
-    echo "$counter) $valor"
-    let counter=$counter+1
+echo "Unique values in the selected column:"
+mapfile -t options < <(sort valores.txt | uniq)
+
+# Display the options for unique values
+echo "Select a value:"
+select option in "${options[@]}"; do
+    if [[ -n "$option" ]]; then
+        echo "You selected option $REPLY: $option"
+        selected_value="$option"
+        break
+    else
+        echo "Invalid selection. Please try again."
+    fi
 done
