@@ -90,9 +90,7 @@ adicionar_filtro_coluna() {
 
                 echo "+++ Arquivo atual: ${arquivo_selecionado}"
                 echo "+++ Filtros atuais:"
-                for filtro in "${filtros[@]}"; do
-                    echo $filtro
-                done
+                print_filtros
 
                 local tamanho_vetor=${#linhas_invalidas[@]}
                 local conta=$((num_linhas-tamanho_vetor))
@@ -105,6 +103,14 @@ adicionar_filtro_coluna() {
             fi
         done
     fi
+
+    cd ..
+}
+
+print_filtros() {
+    for filtro in "${filtros[@]}"; do
+        echo "$filtro"
+    done
 }
 
 
@@ -191,7 +197,6 @@ fi
 
 num_linhas=$(wc -l < "./Dados/${arquivo_selecionado}")
 ((num_linhas--))
-echo $num_linhas
 echo ""
 
 while true; do
