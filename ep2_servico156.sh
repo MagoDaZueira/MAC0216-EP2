@@ -13,9 +13,33 @@
 
 ###################### FUNÇÕES ######################
 
+selecionar_arquivo() {
+    cd Dados
+
+    mapfile -t arquivos < <(ls)
+
+    echo ""
+    echo "Escolha uma opção de arquivo:"
+    select arquivo in "${arquivos[@]}"; do
+        if [[ -n "$arquivo" ]]; then
+            arquivo_selecionado=$arquivo
+            break
+        else
+            echo "Valor inválido. Tente novamente."
+        fi
+    done
+    
+    num_linhas=$(wc -l < $arquivo_selecionado)
+    ((num_linhas--))
+    echo "+++ Arquivo atual: ${arquivo_selecionado}"
+    echo "+++ Número de reclamações:${num_linhas}"
+    echo $sep
+
+    cd ..
+}
+
 adicionar_filtro_coluna() {
     cd Dados
-    arquivo_selecionado="arquivocompleto.csv"
 
     # Create an array directly from the CSV header (first line)
     OLD_IFS=$IFS  # Store the original value of IFS
@@ -25,7 +49,6 @@ adicionar_filtro_coluna() {
     echo "Escolha uma opção de coluna para o filtro:"
     select coluna in "${colunas[@]}"; do
         if [[ -n "$coluna" ]]; then
-            coluna_selecionada="$coluna"
             break
         else
             echo "Valor inválido. Tente novamente."
@@ -47,23 +70,34 @@ adicionar_filtro_coluna() {
     counter=1
     mapfile -t options < <(sort valores.txt | uniq)
 
+    rm valores.txt
+
     echo ""
     # Display the options for unique values
-    if [[ "${#vector[@]}" -le 1 && "${options[@]}" = "" ]]; then
+    if [[ "${#options[@]}" -le 1 && "${options[@]}" = "" ]]; then
         echo "Essa coluna não tem valores. Tente novamente."
+        cd ..
         adicionar_filtro_coluna
         return
 
     else
-        echo "Escolha uma opção de valor para ${coluna_selecionada}:"
+        echo "Escolha uma opção de valor para ${coluna}:"
         select option in "${options[@]}"; do
             if [[ -n "$option" ]]; then
-                filtros+=$option
+                filtrar_linhas
+                filtros+="${coluna} = ${option}"
                 echo "+++ Adicionado filtro: Canal = ${option}"
+
                 echo "+++ Arquivo atual: ${arquivo_selecionado}"
                 echo "+++ Filtros atuais:"
-                # Iterar sobre filtros
-                # Contar reclamações
+                for filtro in "${filtros[@]}"; do
+                    echo $filtro
+                done
+
+                local tamanho_vetor=${#linhas_invalidas[@]}
+                local conta=$((num_linhas-tamanho_vetor))
+
+                echo "+++ Número de reclamações: ${conta}"
                 echo $sep
                 break
             else
@@ -71,6 +105,20 @@ adicionar_filtro_coluna() {
             fi
         done
     fi
+}
+
+
+
+filtrar_linhas() {
+    counter=1
+    while IFS= read -r line; do
+        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
+            if [[ "$line" != *"$option"* ]]; then
+                linhas_invalidas[$counter]=1
+            fi
+        fi
+        ((counter++))
+    done < <(tail -n +2 "$arquivo_selecionado")
 }
 
 
@@ -99,9 +147,23 @@ operacoes=(
 )
 operacao_selecionada="selecionar_arquivo"
 sep="+++++++++++++++++++++++++++++++++++++++"
+
 filtros=()
+linhas_invalidas=()
+
+conta=0
+
+echo $sep
+echo "Este programa mostra estatísticas do"
+echo "Serviço 156 da Prefeitura de São Paulo"
+echo $sep
 
 if [ $# != 0 ]; then
+    if [ ! -e "$1" ]; then
+        echo "ERRO: O arquivo $1 não existe."
+        exit 1
+    fi
+
     mkdir Dados
 
     while read -r line
@@ -120,6 +182,17 @@ if [ $# != 0 ]; then
     done
     cd ..
 fi
+
+if [ ! -d "Dados" ]; then
+    echo "ERRO: Não há dados baixados."
+    echo "Para baixar os dados antes de gerar as estatísticas, use:"
+    echo "  ./ep2_servico156.sh <nome do arquivo com URLs de dados do Serviço 156>"
+fi
+
+num_linhas=$(wc -l < "./Dados/${arquivo_selecionado}")
+((num_linhas--))
+echo $num_linhas
+echo ""
 
 while true; do
     menu_principal
