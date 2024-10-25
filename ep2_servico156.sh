@@ -16,9 +16,12 @@
 selecionar_arquivo() {
     cd Dados
 
+    # Cria um vetor com os nomes de arquivos no diretório Dados
     mapfile -t arquivos < <(ls)
 
     echo ""
+
+    # Usuário seleciona um dos arquivos disponíveis
     echo "Escolha uma opção de arquivo:"
     select arquivo in "${arquivos[@]}"; do
         if [[ -n "$arquivo" ]]; then
@@ -32,8 +35,9 @@ selecionar_arquivo() {
     # Calcula linhas de reclamações do arquivo
     num_linhas=$(wc -l < $arquivo_selecionado)
     ((num_linhas--))
+    num_reclamacoes=$num_linhas
 
-    # Printa informações relevantes
+    # Imprime informações relevantes
     echo "+++ Arquivo atual: ${arquivo_selecionado}"
     echo "+++ Número de reclamações:${num_linhas}"
     echo $sep
@@ -61,8 +65,13 @@ adicionar_filtro_coluna() {
     IFS=$OLD_IFS  # Restaura o valor original do IFS
 
     # Cria um arquivo com os valores da coluna selecionada
+    # Head tem que ser removido, mas demora muito sem
+    local counter=1
     tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
-        echo "$line" | cut -d';' -f"$REPLY"
+        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
+            echo "$line" | cut -d';' -f"$REPLY"
+        fi
+        ((counter++))
     done > valores.txt
 
     # Cria array com os valores distintos e ordenados
@@ -89,16 +98,15 @@ adicionar_filtro_coluna() {
                 filtros+="${coluna} = ${option}"
                 echo "+++ Adicionado filtro: Canal = ${option}"
 
-                # Printa outras informações relevantes
+                # Imprime outras informações relevantes
                 echo "+++ Arquivo atual: ${arquivo_selecionado}"
-                echo "+++ Filtros atuais:"
                 print_filtros
 
                 # Calcula o número de reclamações válidas
                 local tamanho_vetor=${#linhas_invalidas[@]}
-                local conta=$((num_linhas-tamanho_vetor))
+                num_reclamacoes=$((num_linhas-tamanho_vetor))
 
-                echo "+++ Número de reclamações: ${conta}"
+                echo "+++ Número de reclamações: ${num_reclamacoes}"
                 echo $sep
                 break
             else
@@ -112,9 +120,10 @@ adicionar_filtro_coluna() {
 
 
 limpar_filtros_colunas() {
-    # Zera os filtros
+    # Zera os filtros (todas linhas são válidas)
     filtros=()
     linhas_invalidas=()
+    num_reclamacoes=$num_linhas
 
     # Print de informações relevantes
     echo "+++ Filtros removidos"
@@ -124,7 +133,31 @@ limpar_filtros_colunas() {
 }
 
 
+mostrar_reclamacoes() {
+    cd Dados
+    local counter=1
+
+    # Itera sobre o arquivo, imprimindo cada linha
+    while IFS= read -r line; do
+        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
+            echo $line
+        fi
+        ((counter++))
+    done < <(tail -n +2 "$arquivo_selecionado")
+
+    # Imprime informações relevantes
+    echo "+++ Arquivo atual: ${arquivo_selecionado}"
+    print_filtros
+    echo "+++ Número de reclamações: ${num_reclamacoes}"
+    echo $sep
+    
+    cd ..
+}
+
+
 print_filtros() {
+    # Mostra os filtros aplicados no momento
+    echo "+++ Filtros atuais:"
     for filtro in "${filtros[@]}"; do
         echo "$filtro"
     done
@@ -132,7 +165,7 @@ print_filtros() {
 
 
 filtrar_linhas() {
-    counter=1
+    local counter=1
     # Itera sobre as linhas do arquivo para filtrá-las
     while IFS= read -r line; do
         if [[ -z "${linhas_invalidas[$counter]}" ]]; then
@@ -175,6 +208,9 @@ operacoes=(
 )
 operacao_selecionada="selecionar_arquivo"
 sep="+++++++++++++++++++++++++++++++++++++++"
+
+num_linhas=0
+num_reclamacoes=0
 
 filtros=()
 linhas_invalidas=()
@@ -230,6 +266,7 @@ fi
 # Calcula a quantidade de linhas do arquivo selecionado inicial
 num_linhas=$(wc -l < "./Dados/${arquivo_selecionado}")
 ((num_linhas--))
+num_reclamacoes=$num_linhas
 echo ""
 
 # Loop principal do bot, executado até o usuário selecionar "sair"
