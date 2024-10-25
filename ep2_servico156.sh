@@ -29,8 +29,11 @@ selecionar_arquivo() {
         fi
     done
     
+    # Calcula linhas de reclamações do arquivo
     num_linhas=$(wc -l < $arquivo_selecionado)
     ((num_linhas--))
+
+    # Printa informações relevantes
     echo "+++ Arquivo atual: ${arquivo_selecionado}"
     echo "+++ Número de reclamações:${num_linhas}"
     echo $sep
@@ -41,11 +44,11 @@ selecionar_arquivo() {
 adicionar_filtro_coluna() {
     cd Dados
 
-    # Create an array directly from the CSV header (first line)
-    OLD_IFS=$IFS  # Store the original value of IFS
+    # Cria um array com os nomes das colunas (1a linha)
+    OLD_IFS=$IFS  # Guarda o valor original do IFS
     IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
 
-    # Display the options using 'select'
+    # Mostra opções de colunas
     echo "Escolha uma opção de coluna para o filtro:"
     select coluna in "${colunas[@]}"; do
         if [[ -n "$coluna" ]]; then
@@ -55,25 +58,21 @@ adicionar_filtro_coluna() {
         fi
     done
 
-    # Now we use $REPLY as the column number selected by the user
+    IFS=$OLD_IFS  # Restaura o valor original do IFS
 
-    # Restore the original IFS value
-    IFS=$OLD_IFS
-    # Read the lines from the selected file, ignoring the header
+    # Cria um arquivo com os valores da coluna selecionada
     tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
-        # Use cut to extract the selected column
         echo "$line" | cut -d';' -f"$REPLY"
-    done > valores.txt  # Redirect the output to valores.txt
+    done > valores.txt
 
-
-    # Display the unique values in the selected column
-    counter=1
+    # Cria array com os valores distintos e ordenados
     mapfile -t options < <(sort valores.txt | uniq)
 
+    # Arquivo temporário é removido
     rm valores.txt
-
     echo ""
-    # Display the options for unique values
+
+    # Caso em que nenhum valor foi encontrado na coluna
     if [[ "${#options[@]}" -le 1 && "${options[@]}" = "" ]]; then
         echo "Essa coluna não tem valores. Tente novamente."
         cd ..
@@ -81,17 +80,21 @@ adicionar_filtro_coluna() {
         return
 
     else
+        # Mostra opções de filtros, com base nos valores guardados
         echo "Escolha uma opção de valor para ${coluna}:"
         select option in "${options[@]}"; do
             if [[ -n "$option" ]]; then
+                # Cria o filtro escolhido
                 filtrar_linhas
                 filtros+="${coluna} = ${option}"
                 echo "+++ Adicionado filtro: Canal = ${option}"
 
+                # Printa outras informações relevantes
                 echo "+++ Arquivo atual: ${arquivo_selecionado}"
                 echo "+++ Filtros atuais:"
                 print_filtros
 
+                # Calcula o número de reclamações válidas
                 local tamanho_vetor=${#linhas_invalidas[@]}
                 local conta=$((num_linhas-tamanho_vetor))
 
@@ -107,6 +110,20 @@ adicionar_filtro_coluna() {
     cd ..
 }
 
+
+limpar_filtros_colunas() {
+    # Zera os filtros
+    filtros=()
+    linhas_invalidas=()
+
+    # Print de informações relevantes
+    echo "+++ Filtros removidos"
+    echo "+++ Arquivo atual: ${arquivo_selecionado}"
+    echo "+++ Número de reclamações: ${num_linhas}"
+    echo $sep
+}
+
+
 print_filtros() {
     for filtro in "${filtros[@]}"; do
         echo "$filtro"
@@ -114,12 +131,14 @@ print_filtros() {
 }
 
 
-
 filtrar_linhas() {
     counter=1
+    # Itera sobre as linhas do arquivo para filtrá-las
     while IFS= read -r line; do
         if [[ -z "${linhas_invalidas[$counter]}" ]]; then
+            # Verifica se a opção selecionada não pertence à linha atual
             if [[ "$line" != *"$option"* ]]; then
+                # Usa o "índice" da linha como forma de invalidá-la
                 linhas_invalidas[$counter]=1
             fi
         fi
@@ -129,6 +148,7 @@ filtrar_linhas() {
 
 
 menu_principal() {
+    # Mostra as opções gerais de operações do bot
     echo "Escolha uma opção de operação:"
     select operacao in "${operacoes[@]}"; do
         if [[ -n "$operacao" ]]; then
@@ -140,6 +160,8 @@ menu_principal() {
 }
 
 #####################################################
+
+##################### VARIÁVEIS #####################
 
 arquivo_selecionado="arquivocompleto.csv"
 operacoes=(
@@ -157,48 +179,60 @@ sep="+++++++++++++++++++++++++++++++++++++++"
 filtros=()
 linhas_invalidas=()
 
-conta=0
+#####################################################
 
+####################### MAIN ########################
+
+# Frase de introdução do programa
 echo $sep
 echo "Este programa mostra estatísticas do"
 echo "Serviço 156 da Prefeitura de São Paulo"
 echo $sep
 
+# Caso da execução com argumento
 if [ $# != 0 ]; then
+
+    # Erro em que o arquivo dado como parâmetro não existe
     if [ ! -e "$1" ]; then
         echo "ERRO: O arquivo $1 não existe."
         exit 1
     fi
 
-    mkdir Dados
+    mkdir Dados  # Diretório que armazenará os csv
 
+    # Baixa de cada uma das URLs do arquivo dado como parâmetro
     while read -r line
     do
         wget -nv $line -P ./Dados
     done < $1
 
-
     cd Dados
+    # Converte de ISO-8859-1 para UTF-8
     for i in $( ls ); do
         iconv -f ISO-8859-1 -t UTF8 "$i" > "$i".utf-8
         mv "$i".utf-8 "$i"
     done
-    for i in $( ls ); do
-        cat "$i" >> "arquivocompleto.csv"
+
+    # Concatena as linhas arquivos num mesmo arquivo final
+    for arquivo in $( ls ); do
+        cat "$arquivo" >> "arquivocompleto.csv"
     done
     cd ..
 fi
 
+# Caso de erro em que o bot vai rodar sem que haja um diretório de dados
 if [ ! -d "Dados" ]; then
     echo "ERRO: Não há dados baixados."
     echo "Para baixar os dados antes de gerar as estatísticas, use:"
     echo "  ./ep2_servico156.sh <nome do arquivo com URLs de dados do Serviço 156>"
 fi
 
+# Calcula a quantidade de linhas do arquivo selecionado inicial
 num_linhas=$(wc -l < "./Dados/${arquivo_selecionado}")
 ((num_linhas--))
 echo ""
 
+# Loop principal do bot, executado até o usuário selecionar "sair"
 while true; do
     menu_principal
     if [ "$operacao" = "sair" ]; then
@@ -207,6 +241,7 @@ while true; do
         break
     fi
     
+    # Executa a operação escolhida (uma das funções da seção anterior)
     $operacao
 
     echo ""
