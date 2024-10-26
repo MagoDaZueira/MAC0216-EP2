@@ -243,11 +243,11 @@ mostrar_ranking_reclamacoes() {
     # Substitua $REPLY pelo número da coluna selecionada
     echo "+++ Temas com mais reclamações:"
 
-    tail -n +2 "$arquivo_selecionado" | while read -r line; do
+    tail -n +2 | while read -r line; do
         # Ignora a linha se estiver no array `linhas_invalidas`
-        if [[ -z "${linhas_invalidas[$counter]}" && -n "$line"]]; then
+        if [[ -z "${linhas_invalidas[$counter]}" && -n "$line" ]]; then
             # Extrai a coluna escolhida e adiciona aos resultados
-            echo "$line" | cut -d';' -f $coluna_numero >> ranking.txt
+            echo "$line" | cut -d';' -f $coluna_numero
         fi
         ((counter++))
     done | sort | uniq -c | sort -nr | head -5
