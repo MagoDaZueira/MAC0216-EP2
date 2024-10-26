@@ -245,7 +245,7 @@ mostrar_ranking_reclamacoes() {
 
     tail -n +2 "$arquivo_selecionado" | while read -r line; do
         # Ignora a linha se estiver no array `linhas_invalidas`
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
+        if [[ -z "${linhas_invalidas[$counter]}" && -n "$line"]]; then
             # Extrai a coluna escolhida e adiciona aos resultados
             echo "$line" | cut -d';' -f $coluna_numero >> ranking.txt
         fi
