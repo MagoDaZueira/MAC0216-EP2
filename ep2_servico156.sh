@@ -67,7 +67,7 @@ adicionar_filtro_coluna() {
     # Cria um arquivo com os valores da coluna selecionada
     # Head tem que ser removido, mas demora muito sem
     local counter=1
-    tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
+    head -100 "$arquivo_selecionado" | tail -n +2 | head -n 20 | while read -r line; do
         if [[ -z "${linhas_invalidas[$counter]}" ]]; then
             echo "$line" | cut -d';' -f"$REPLY"
         fi
@@ -95,7 +95,7 @@ adicionar_filtro_coluna() {
             if [[ -n "$option" ]]; then
                 # Cria o filtro escolhido
                 filtrar_linhas
-                filtros+="${coluna} = ${option}"
+                filtros+=("${coluna} = ${option}")
                 echo "+++ Adicionado filtro: Canal = ${option}"
 
                 # Imprime outras informações relevantes
@@ -157,11 +157,18 @@ mostrar_reclamacoes() {
 
 print_filtros() {
     # Mostra os filtros aplicados no momento
+    total_filtros=${#filtros[@]}
+    local counter=1
     echo "+++ Filtros atuais:"
     for filtro in "${filtros[@]}"; do
-        echo "$filtro"
+        if [[ "$counter" -ne "$total_filtros" ]]; then
+            echo -n "$filtro | "
+        else
+            echo "$filtro"
+        fi
+        ((counter++))
     done
-}
+} 
 
 
 filtrar_linhas() {
@@ -176,7 +183,7 @@ filtrar_linhas() {
             fi
         fi
         ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
+    done < <(head -100 "$arquivo_selecionado" | tail -n +2)
 }
 
 
@@ -279,6 +286,7 @@ num_reclamacoes=0
 
 filtros=()
 linhas_invalidas=()
+
 
 #####################################################
 
