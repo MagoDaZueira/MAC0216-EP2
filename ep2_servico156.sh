@@ -220,12 +220,13 @@ mostrar_duracao_media_reclamacao() {
 
 mostrar_ranking_reclamacoes() {
     cd Dados
+    OLD_IFS=$IFS  # Salva o valor original do IFS
     local counter=1
 
-    OLD_IFS=$IFS  # Guarda o valor original do IFS
+    # Lê a primeira linha do CSV e armazena os nomes das colunas em um array
     IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
 
-    # Mostra opções de colunas
+    # Exibe as opções de colunas
     echo "Escolha uma opção de coluna para o filtro:"
     select coluna in "${colunas[@]}"; do
         if [[ -n "$coluna" ]]; then
@@ -236,59 +237,24 @@ mostrar_ranking_reclamacoes() {
     done
 
     IFS=$OLD_IFS  # Restaura o valor original do IFS
+    coluna_numero=$((REPLY))
 
-    local counter=1
-    tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
+    # Obtém os 5 valores mais frequentes na coluna selecionada, removendo a primeira linha (cabeçalho)
+    # Substitua $REPLY pelo número da coluna selecionada
+    echo "+++ Temas com mais reclamações:"
+
+    tail -n +2 "$arquivo_selecionado" | while read -r line; do
+        # Ignora a linha se estiver no array `linhas_invalidas`
         if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            echo "$line" | cut -d';' -f"$REPLY"
+            # Extrai a coluna escolhida e adiciona aos resultados
+            echo "$line" | cut -d';' -f $coluna_numero >> ranking.txt
         fi
         ((counter++))
-    done > valores.txt
+    done | sort | uniq -c | sort -nr | head -5
 
-    declare -A numero_de_linhas_de_reclamacao
-
-    while IFS= read -r value; do
-            value=$(echo "$value" | xargs)
-            # Remover todos os caracteres, exceto letras, números e sublinhados
-            sanitized_value=$(echo "$value" | tr -cd '[:alnum:]_')
-            let numero_de_linhas_de_reclamacao["$sanitized_value"]=0+0
-    done < valores.txt
-
-    while IFS= read -r line; do
-        while IFS= read -r value; do
-            value=$(echo "$value" | xargs)
-            # Remover todos os caracteres, exceto letras, números e sublinhados
-            sanitized_value=$(echo "$value" | tr -cd '[:alnum:]_')
-
-            # Realiza a operação caso seja uma linha válida
-            if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-                if [[ "$line" != *"$sanitized_value"* ]]; then
-                    ((numero_de_linhas_de_reclamacao["$sanitized_value"]++))
-                fi
-            fi
-            ((counter++))
-        done < valores.txt
-    done < <(tail -n +2 "$arquivo_selecionado")
-    #S
-    valores_ordenados=()
-    for key in "${!numero_de_linhas_de_reclamacao[@]}"; do
-        valores_ordenados+=("$key ${numero_de_linhas_de_reclamacao[$key]}")
-    done
-
-    IFS=$'\n' 
-    sorted_values=($(printf "%s\n" "${valores_ordenados[@]}" | sort -k2 -nr))
-
-    echo "+++ Tema com mais reclamações:"
-    for ((i = 0; i < 5 && i < ${#sorted_values[@]}; i++)); do
-        local index_value=(${sorted_values[i]})  # Acesso ao array
-        local index="${index_value[0]}"
-        local value="${index_value[1]}"
-        echo "$value $index"
-    done
     echo "+++++++++++++++++++++++++++++++++++++++"
-
-
     cd ..
+
 }
 
 #####################################################
