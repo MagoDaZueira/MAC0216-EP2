@@ -67,7 +67,7 @@ adicionar_filtro_coluna() {
     # Cria um arquivo com os valores da coluna selecionada
     # Head tem que ser removido, mas demora muito sem
     local counter=1
-    head -100 "$arquivo_selecionado" | tail -n +2 | head -n 20 | while read -r line; do
+    tail -n +2 "$arquivo_selecionado" | head -n 20 | while read -r line; do
         if [[ -z "${linhas_invalidas[$counter]}" ]]; then
             echo "$line" | cut -d';' -f"$REPLY"
         fi
@@ -183,7 +183,7 @@ filtrar_linhas() {
             fi
         fi
         ((counter++))
-    done < <(head -100 "$arquivo_selecionado" | tail -n +2)
+    done < <(tail -n +2 "$arquivo_selecionado")
 }
 
 
@@ -220,7 +220,7 @@ mostrar_duracao_media_reclamacao() {
     duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / $num_reclamacoes")
 
     echo "+++ Duração média da reclamação: $duracao_media dias"
-    echo "+++++++++++++++++++++++++++++++++++++++"
+    echo "$sep"
 
     cd ..
 }
@@ -250,7 +250,7 @@ mostrar_ranking_reclamacoes() {
     # Substitua $REPLY pelo número da coluna selecionada
     echo "+++ Temas com mais reclamações:"
 
-    tail -n +2 | while read -r line; do
+    tail -n +2 "$arquivo_selecionado" | while read -r line; do
         # Ignora a linha se estiver no array `linhas_invalidas`
         if [[ -z "${linhas_invalidas[$counter]}" && -n "$line" ]]; then
             # Extrai a coluna escolhida e adiciona aos resultados
