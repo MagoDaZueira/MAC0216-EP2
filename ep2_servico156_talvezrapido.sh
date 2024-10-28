@@ -48,8 +48,8 @@ selecionar_arquivo() {
 adicionar_filtro_coluna() {
     cd Dados
 
-    # Cria um array com os nomes das colunas (1a linha)
-    OLD_IFS=$IFS  # Guarda o valor original do IFS
+    # Cria um array com os nomes das colunas (1ª linha)
+    OLD_IFS=$IFS
     IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
 
     # Mostra opções de colunas
@@ -62,21 +62,15 @@ adicionar_filtro_coluna() {
         fi
     done
 
-    IFS=$OLD_IFS  # Restaura o valor original do IFS
+    IFS=$OLD_IFS
 
-    # Cria um arquivo com os valores da coluna selecionada
-    local counter=1
-    tail -n +2 "$arquivo_selecionado" | while read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            echo "$line" | cut -d';' -f"$REPLY"
-        fi
-        ((counter++))
-    done > valores.txt
+    # Cria o arquivo temporário `valores.txt` com os valores únicos da coluna selecionada
+    tail -n +2 "$arquivo_selecionado" |
+        parallel --pipe -N1 "line={}; if [[ -z \${linhas_invalidas[\$((LINENO+1))]} ]]; then echo \"\$line\" | cut -d ';' -f \"$REPLY\"; fi" |
+        sort | uniq > valores.txt
 
     # Cria array com os valores distintos e ordenados
-    mapfile -t options < <(sort valores.txt | uniq)
-
-    # Arquivo temporário é removido
+    mapfile -t options < valores.txt
     rm valores.txt
     echo ""
 
@@ -103,10 +97,10 @@ adicionar_filtro_coluna() {
 
                 # Calcula o número de reclamações válidas
                 local tamanho_vetor=${#linhas_invalidas[@]}
-                num_reclamacoes=$((num_linhas-tamanho_vetor))
+                num_reclamacoes=$((num_linhas - tamanho_vetor))
 
                 echo "+++ Número de reclamações: ${num_reclamacoes}"
-                echo $sep
+                echo "$sep"
                 break
             else
                 echo "Valor inválido. Tente novamente."
@@ -171,18 +165,12 @@ print_filtros() {
 
 
 filtrar_linhas() {
-    local counter=1
-    # Itera sobre as linhas do arquivo para filtrá-las
-    while IFS= read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            # Verifica se a opção selecionada não pertence à linha atual
-            if [[ "$line" != *"$option"* ]]; then
-                # Usa o "índice" da linha como forma de invalidá-la
-                linhas_invalidas[$counter]=1
-            fi
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
+    tail -n +2 "$arquivo_selecionado" |
+        parallel --pipe -N1 'line={}; if [[ "$line" != *"$option"* ]]; then echo $((LINENO)) > linhas_invalidas_temp.txt; fi' > linhas_invalidas_temp.txt
+
+    # Carrega as linhas inválidas em um array
+    mapfile -t linhas_invalidas < linhas_invalidas_temp.txt
+    rm linhas_invalidas_temp.txt
 }
 
 
@@ -201,67 +189,35 @@ menu_principal() {
 
 mostrar_duracao_media_reclamacao() {
     cd Dados
-    local counter=1
-    local soma_das_duracoes=0
 
-    # Leitura linha a linha do arquivo
-    while IFS= read -r line; do
-        # Realiza a operação se é uma linha válida
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            # Os valores das duas colunas são armazenados
-            local coluna_abertura=$(echo "$line" | cut -d ';' -f 1)
-            local coluna_parecer=$(echo "$line" | cut -d ';' -f 13)
-            # E as somas das durações vão sendo somadas
-            soma_das_duracoes=$(bc <<< "scale=2; $soma_das_duracoes + ($(date -d "$coluna_parecer" +%s) - $(date -d "$coluna_abertura" +%s))/86400")
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
-    # Cálculo da média
+    # Cria um arquivo temporário para armazenar as durações
+    tail -n +2 "$arquivo_selecionado" |
+        parallel --pipe -N1 -k 'line={}; coluna_abertura=$(echo "$line" | cut -d ";" -f 1); coluna_parecer=$(echo "$line" | cut -d ";" -f 13); if [[ -z "${linhas_invalidas[$(echo "$line" | cut -d ";" -f 1)]}" ]]; then echo $(bc <<< "scale=2; ($(date -d "$coluna_parecer" +%s) - $(date -d "$coluna_abertura" +%s))/86400"); fi' > duracoes_temp.txt
+
+    # Soma todas as durações do arquivo temporário
+    soma_das_duracoes=$(paste -sd+ duracoes_temp.txt | bc)
+
+    # Calcula a média
     duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / $num_reclamacoes")
 
     echo "+++ Duração média da reclamação: $duracao_media dias"
     echo "$sep"
 
+    # Remove o arquivo temporário e volta ao diretório original
+    rm duracoes_temp.txt
     cd ..
 }
 
 mostrar_ranking_reclamacoes() {
     cd Dados
-    OLD_IFS=$IFS  # Salva o valor original do IFS
-    local counter=1
 
-    # Lê a primeira linha do CSV e armazena os nomes das colunas em um array
-    IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
-
-    # Exibe as opções de colunas
-    echo "Escolha uma opção de coluna para o filtro:"
-    select coluna in "${colunas[@]}"; do
-        if [[ -n "$coluna" ]]; then
-            break
-        else
-            echo "Valor inválido. Tente novamente."
-        fi
-    done
-
-    IFS=$OLD_IFS  # Restaura o valor original do IFS
-    coluna_numero=$((REPLY))
-
-    # Obtém os 5 valores mais frequentes na coluna selecionada, removendo a primeira linha (cabeçalho)
-    # Substitua $REPLY pelo número da coluna selecionada
-    echo "+++ Temas com mais reclamações:"
-
-    tail -n +2 "$arquivo_selecionado" | while read -r line; do
-        # Ignora a linha se estiver no array `linhas_invalidas`
-        if [[ -z "${linhas_invalidas[$counter]}" && -n "$line" ]]; then
-            # Extrai a coluna escolhida e adiciona aos resultados
-            echo "$line" | cut -d';' -f $coluna_numero
-        fi
-        ((counter++))
-    done | sort | uniq -c | sort -nr | head -5
+    # Obtém os valores da coluna em paralelo, excluindo linhas inválidas
+    tail -n +2 "$arquivo_selecionado" |
+        parallel --pipe -N1 'line={}; if [[ -z "${linhas_invalidas[$(echo "$line" | cut -d ";" -f 1)]}" ]]; then echo "$line" | cut -d ";" -f $coluna_numero; fi' |
+        sort | uniq -c | sort -nr | head -5
 
     echo "+++++++++++++++++++++++++++++++++++++++"
     cd ..
-
 }
 
 #####################################################
