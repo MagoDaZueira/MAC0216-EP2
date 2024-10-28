@@ -75,30 +75,17 @@ adicionar_filtro_coluna() {
 
     # Cria um arquivo com os valores da coluna selecionada, ignorando linhas inválidas
     if [ ${#valores_filtrados[@]} -eq 0 ]; then
-        tail -n +2 "$arquivo_selecionado" | cut -d';' -f $coluna_numero | sort -u > valores.txt
+        tail -n +2 "$arquivo_selecionado" | cut -d';' -f $coluna_numero | sort -u | grep -v "^$" > valores.txt
     else
         tail -n +2 "$arquivo_selecionado" > copia.txt
         for line in "${valores_filtrados[@]}"; do
             grep "$line" copia.txt > temp.txt
             cp temp.txt copia.txt
         done
-        cut -d';' -f $coluna_numero copia.txt | sort -u > valores.txt
+        cut -d';' -f $coluna_numero copia.txt | sort -u | grep -v "^$" > valores.txt
         [ -f "temp.txt" ] && rm "temp.txt"
     fi
-    
-    mapfile -t options < valores.txt
-    #array_limpo=()
-    #for elemento in "${options[@]}"; do
-     #   if [[ -n "$elemento" && "$elemento"  ]]; then
-       #    array_limpo+=("$elemento")
-      #  fi
-    #done
-    #options=$array_limpo
-
-    # Cria array com os valores distintos e ordenados
-    
-
-    # Arquivo temporário é removido
+    mapfile -t options < valores.txt 
     rm valores.txt
     echo ""
 
