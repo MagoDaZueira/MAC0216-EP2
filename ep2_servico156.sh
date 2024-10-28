@@ -16,10 +16,14 @@
 selecionar_arquivo() {
     cd Dados
 
+    echo ""
+
+    # Zera filtros
+    filtros=()
+    linhas_invalidas=()
+
     # Cria um vetor com os nomes de arquivos no diretório Dados
     mapfile -t arquivos < <(ls)
-
-    echo ""
 
     # Usuário seleciona um dos arquivos disponíveis
     echo "Escolha uma opção de arquivo:"
@@ -48,6 +52,8 @@ selecionar_arquivo() {
 adicionar_filtro_coluna() {
     cd Dados
 
+    echo ""
+
     # Cria um array com os nomes das colunas (1a linha)
     OLD_IFS=$IFS  # Guarda o valor original do IFS
     IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
@@ -65,16 +71,19 @@ adicionar_filtro_coluna() {
     IFS=$OLD_IFS  # Restaura o valor original do IFS
 
     # Cria um arquivo com os valores da coluna selecionada
-    local counter=1
-    tail -n +2 "$arquivo_selecionado" | while read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            echo "$line" | cut -d';' -f"$REPLY"
-        fi
-        ((counter++))
-    done > valores.txt
+    awk -F';' -v field="$REPLY" '
+        NR > 1 { 
+            if (!linhas_invalidas[NR-2]) { 
+                print $field 
+            }
+        }
+    ' "$arquivo_selecionado" > valores.txt
+
 
     # Cria array com os valores distintos e ordenados
-    mapfile -t options < <(sort valores.txt | uniq)
+    mapfile -t options < <(sort valores.txt | uniq | grep -v '^$')
+
+
 
     # Arquivo temporário é removido
     rm valores.txt
@@ -124,7 +133,7 @@ limpar_filtros_colunas() {
     linhas_invalidas=()
     num_reclamacoes=$num_linhas
 
-    # Print de informações relevantes
+    # Imprime informações relevantes
     echo "+++ Filtros removidos"
     echo "+++ Arquivo atual: ${arquivo_selecionado}"
     echo "+++ Número de reclamações: ${num_linhas}"
@@ -134,22 +143,44 @@ limpar_filtros_colunas() {
 
 mostrar_reclamacoes() {
     cd Dados
-    local counter=1
 
-    # Itera sobre o arquivo, imprimindo cada linha
-    while IFS= read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            echo $line
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
+    # Cria um arquivo temporário para armazenar os índices de linhas inválidas
+    tmpfile=$(mktemp)
+    
+    # Escreve os índices de linhas inválidas no arquivo temporário
+    for index in "${linhas_invalidas[@]}"; do
+        echo "$index" >> "$tmpfile"
+    done
+
+    # Usa awk para ler e imprimir linhas, ignorando as inválidas
+    awk -v num_reclamacoes="$num_reclamacoes" -v arquivo_selecionado="$arquivo_selecionado" -v tmpfile="$tmpfile" '
+        BEGIN {
+            # Carrega os índices inválidos a partir do arquivo temporário
+            while ((getline line < tmpfile) > 0) {
+                linhas_invalidas[line] = 1
+            }
+            close(tmpfile)
+            # Print header for the current file
+        }
+        NR > 1 {
+            if (!(NR in linhas_invalidas)) {
+                print $0  # Imprime a linha se não for inválida
+            }
+        }
+        END {
+
+        }
+    ' "$arquivo_selecionado"
 
     # Imprime informações relevantes
-    echo "+++ Arquivo atual: ${arquivo_selecionado}"
+    echo "+++ Arquivo atual: $arquivo_selecionado"
     print_filtros
-    echo "+++ Número de reclamações: ${num_reclamacoes}"
+    echo "+++ Número de reclamações: $num_reclamacoes"
     echo $sep
-    
+
+    # Remove o arquivo temporário
+    rm -f "$tmpfile"
+
     cd ..
 }
 
@@ -171,18 +202,39 @@ print_filtros() {
 
 
 filtrar_linhas() {
-    local counter=1
-    # Itera sobre as linhas do arquivo para filtrá-las
-    while IFS= read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            # Verifica se a opção selecionada não pertence à linha atual
-            if [[ "$line" != *"$option"* ]]; then
-                # Usa o "índice" da linha como forma de invalidá-la
-                linhas_invalidas[$counter]=1
-            fi
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
+    # Cria um arquivo temporário para armazenar os índices de linhas inválidas
+    tmpfile=$(mktemp)
+    for linha in "${linhas_invalidas[@]}"; do
+        echo "$linha" >> "$tmpfile"
+    done
+
+    # Processa o arquivo com awk considerando as linhas previamente inválidas
+    # linhas_invalidas=()
+    while IFS= read -r linha_invalida; do
+        linhas_invalidas+=("$linha_invalida")
+    done < <(
+        awk -v option="$option" -v tmpfile="$tmpfile" '
+            BEGIN {
+                # Carrega as linhas inválidas a partir do arquivo temporário
+                while ((getline line < tmpfile) > 0) {
+                    linhas_invalidas[line] = 1
+                }
+                close(tmpfile)
+            }
+            NR > 1 {
+                # Verifica se a linha já está marcada como inválida
+                if (!(NR in linhas_invalidas)) {
+                    # Se a linha não contém `option`, marca-a como inválida
+                    if ($0 !~ option) {
+                        print NR  # Imprime o índice da linha inválida
+                    }
+                }
+            }
+        ' "$arquivo_selecionado"
+    )
+
+    # Remove o arquivo temporário
+    rm -f "$tmpfile"
 }
 
 
@@ -196,11 +248,13 @@ menu_principal() {
             echo "Valor inválido. Tente novamente."
         fi
     done
-    echo ""
 }
 
 mostrar_duracao_media_reclamacao() {
     cd Dados
+
+    echo ""
+
     local counter=1
     local soma_das_duracoes=0
 
@@ -227,11 +281,14 @@ mostrar_duracao_media_reclamacao() {
 
 mostrar_ranking_reclamacoes() {
     cd Dados
+
+    echo ""
+
     OLD_IFS=$IFS  # Salva o valor original do IFS
     local counter=1
 
     # Lê a primeira linha do CSV e armazena os nomes das colunas em um array
-    IFS=';' read -r -a colunas < <(head -n 1 arquivocompleto.csv)
+    IFS=';' read -r -a colunas < <(head -n 1 $arquivo_selecionado)
 
     # Exibe as opções de colunas
     echo "Escolha uma opção de coluna para o filtro:"
@@ -248,18 +305,44 @@ mostrar_ranking_reclamacoes() {
 
     # Obtém os 5 valores mais frequentes na coluna selecionada, removendo a primeira linha (cabeçalho)
     # Substitua $REPLY pelo número da coluna selecionada
-    echo "+++ Temas com mais reclamações:"
+    echo "+++ $coluna com mais reclamações:"
 
-    tail -n +2 "$arquivo_selecionado" | while read -r line; do
-        # Ignora a linha se estiver no array `linhas_invalidas`
-        if [[ -z "${linhas_invalidas[$counter]}" && -n "$line" ]]; then
-            # Extrai a coluna escolhida e adiciona aos resultados
-            echo "$line" | cut -d';' -f $coluna_numero
-        fi
-        ((counter++))
-    done | sort | uniq -c | sort -nr | head -5
+    # Cria um arquivo temporário para armazenar os índices de linhas inválidas
+    tmpfile=$(mktemp)
+    for linha in "${linhas_invalidas[@]}"; do
+        echo "$linha" >> "$tmpfile"
+    done
 
-    echo "+++++++++++++++++++++++++++++++++++++++"
+    # Conta ocorrências da coluna especificada, ignorando linhas inválidas e vazias
+    awk -v coluna="$coluna_numero" -v tmpfile="$tmpfile" '
+        BEGIN {
+            # Carrega as linhas inválidas a partir do arquivo temporário
+            while ((getline line < tmpfile) > 0) {
+                linhas_invalidas[line] = 1
+            }
+            close(tmpfile)
+        }
+        NR > 1 {
+            # Ignora a linha se estiver no array de inválidas ou se estiver vazia
+            if (!(NR in linhas_invalidas) && $0 != "") {
+                # Extrai a coluna especificada e imprime o valor para contagem posterior
+                split($0, campos, ";")
+                print campos[coluna]
+            }
+        }
+    ' "$arquivo_selecionado" | sort | uniq -c | sort -nr | head -5 > ranking.txt
+
+    # Imprime o ranking na formatação correta
+    while IFS= read -r line; do
+        echo "   $line"
+    done < ranking.txt
+
+    # Remove os arquivos temporários
+    rm ranking.txt
+    rm -f "$tmpfile"
+
+
+    echo "$sep"
     cd ..
 
 }
@@ -322,10 +405,17 @@ if [ $# != 0 ]; then
         mv "$i".utf-8 "$i"
     done
 
-    # Concatena as linhas arquivos num mesmo arquivo final
-    for arquivo in $( ls ); do
-        cat "$arquivo" >> "arquivocompleto.csv"
+    cabecalho=false
+    for arquivo in $(ls); do
+        if [ "$cabecalho" = false ]; then
+            # Escreve a linha inicial uma única vez
+            head -n 1 "$arquivo" >> "arquivocompleto.csv"
+            cabecalho=true
+        fi
+        # Concatena os arquivos num mesmo arquivo final
+        tail -n +2 "$arquivo" >> "arquivocompleto.csv"
     done
+
     cd ..
 fi
 
