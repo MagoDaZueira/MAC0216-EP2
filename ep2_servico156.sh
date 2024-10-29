@@ -235,31 +235,19 @@ mostrar_duracao_media_reclamacao() {
     if [ -n "${valores_filtrados[*]}" ]; then
         regex=$(IFS=\|; echo "${valores_filtrados[*]}")
 
-        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f 1 > coluna_abertura.txt
-        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f 13 > coluna_parecer.txt
+        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f 1,13 > colunas_data.txt
 
-        mapfile -t coluna_abertura < coluna_abertura.txt
-        mapfile -t coluna_parecer < coluna_parecer.txt
     else
-        cut -d";" -f 1 "$arquivo_selecionado" > coluna_abertura.txt
-        cut -d";" -f 13 "$arquivo_selecionado" > coluna_parecer.txt
+        cut -d";" -f 1,13 "$arquivo_selecionado" > colunas_data.txt
 
-        mapfile -t coluna_abertura < coluna_abertura.txt
-        mapfile -t coluna_parecer < coluna_parecer.txt
     fi
 
+    num_reclamacoes=$(wc -l < colunas_data.txt)
+
     # Leitura linha a linha do arquivo
-    while IFS= read -r line; do
-        # Realiza a operação se é uma linha válida
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            # Os valores das duas colunas são armazenados
-            local coluna_abertura=$(echo "$line" | cut -d ';' -f 1)
-            local coluna_parecer=$(echo "$line" | cut -d ';' -f 13)
-            # E as somas das durações vão sendo somadas
-            soma_das_duracoes=$(bc <<< "scale=2; $soma_das_duracoes + ($(date -d "$coluna_parecer" +%s) - $(date -d "$coluna_abertura" +%s))/86400")
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
+    soma_das_duracoes=$(awk -F';' '{soma += $2 - $1} END {print soma}' colunas_data.txt)
+    sleep 3000
+    
     # Cálculo da média
     duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / $num_reclamacoes")
 
