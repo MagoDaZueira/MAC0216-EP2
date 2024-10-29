@@ -159,13 +159,20 @@ mostrar_reclamacoes() {
     cd Dados
 
     # Lê o arquivo e imprime apenas linhas válidas
-    local counter=1
-    tail -n +2 "$arquivo_selecionado" | while IFS= read -r line; do
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            echo "$line"
-        fi
-        ((counter++))
-    done
+    if [ -n "${valores_filtrados[*]}" ]; then
+        tail -n +2 "$arquivo_selecionado" > copia.txt
+        for line in "${valores_filtrados[@]}"; do
+            grep "$line" copia.txt > temp.txt
+            cp temp.txt copia.txt
+        done
+        cat copia.txt
+        [ -f "temp.txt" ] && rm "temp.txt"
+        num_reclamacoes=$(wc -l < copia.txt)
+        rm copia.txt
+    else
+        cat "$arquivo_selecionado"
+        num_reclamacoes=$(wc -l < "$arquivo_selecionado")
+    fi
 
     # Imprime informações relevantes
     echo "+++ Arquivo atual: $arquivo_selecionado"
@@ -228,14 +235,19 @@ menu_principal() {
 mostrar_duracao_media_reclamacao() {
     cd Dados
 
-    echo ""
-
     local soma_das_duracoes=0
 
     # Filtra e prepara o arquivo com as colunas 1 e 13
     if [ -n "${valores_filtrados[*]}" ]; then
-        regex=$(IFS=\|; echo "${valores_filtrados[*]}")
-        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f 1,13 > colunas_data.txt
+        tail -n +2 "$arquivo_selecionado" > copia.txt
+        for line in "${valores_filtrados[@]}"; do
+            grep "$line" copia.txt > temp.txt
+            cp temp.txt copia.txt
+        done
+        cut -d';' -f $coluna_numero copia.txt > /dev/null
+        [ -f "temp.txt" ] && rm "temp.txt"
+        cut -d";" -f 1,13 copia.txt > colunas_data.txt
+        rm copia.txt
     else
         cut -d";" -f 1,13 "$arquivo_selecionado" > colunas_data.txt
     fi
@@ -262,7 +274,7 @@ mostrar_duracao_media_reclamacao() {
 
     echo "+++ Duração média da reclamação: $duracao_media dias"
     echo "$sep"
-
+    rm colunas_data.txt
     cd ..
 }
 
