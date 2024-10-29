@@ -20,7 +20,6 @@ selecionar_arquivo() {
 
     # Zera filtros
     filtros=()
-    linhas_invalidas=()
     valores_filtrados=()
 
     # Cria um vetor com os nomes de arquivos no diretório Dados
@@ -38,13 +37,12 @@ selecionar_arquivo() {
     done
     
     # Calcula linhas de reclamações do arquivo
-    num_linhas=$(wc -l < $arquivo_selecionado)
-    ((num_linhas--))
-    num_reclamacoes=$num_linhas
+    num_reclamacoes=$(wc -l < $arquivo_selecionado | tr -d ' ')
+    ((num_reclamacoes--))
 
     # Imprime informações relevantes
     echo "+++ Arquivo atual: ${arquivo_selecionado}"
-    echo "+++ Número de reclamações: ${num_linhas}"
+    echo "+++ Número de reclamações: ${num_reclamacoes}"
     echo $sep
 
     cd ..
@@ -110,10 +108,6 @@ adicionar_filtro_coluna() {
                 echo "+++ Arquivo atual: ${arquivo_selecionado}"
                 print_filtros
 
-                # Calcula o número de reclamações válidas
-                #local tamanho_vetor=${#linhas_invalidas[@]}
-                #num_reclamacoes=$((num_linhas - tamanho_vetor))
-
                 tail -n +2 "$arquivo_selecionado" > copia.txt
                 for line in "${valores_filtrados[@]}"; do
                     grep "$line" copia.txt > temp.txt
@@ -139,97 +133,21 @@ adicionar_filtro_coluna() {
 
 limpar_filtros_colunas() {
     cd Dados
-    # Zera os filtros (todas linhas são válidas)
+
+    # Zera os filtros
     filtros=()
-    linhas_invalidas=()
     valores_filtrados=()
     
-    num_reclamacoes=$(wc -l < "$arquivo_selecionado")
+    num_reclamacoes=$(wc -l < $arquivo_selecionado | tr -d ' ')
+    ((num_reclamacoes--))
 
     # Imprime informações relevantes
     echo "+++ Filtros removidos"
     echo "+++ Arquivo atual: ${arquivo_selecionado}"
     echo "+++ Número de reclamações: ${num_reclamacoes}"
     echo $sep
-    cd ..
-}
-
-
-mostrar_reclamacoes() {
-    cd Dados
-
-    # Lê o arquivo e imprime apenas linhas válidas
-    if [ -n "${valores_filtrados[*]}" ]; then
-        tail -n +2 "$arquivo_selecionado" > copia.txt
-        for line in "${valores_filtrados[@]}"; do
-            grep "$line" copia.txt > temp.txt
-            cp temp.txt copia.txt
-        done
-        cat copia.txt
-        [ -f "temp.txt" ] && rm "temp.txt"
-        num_reclamacoes=$(wc -l < copia.txt)
-        rm copia.txt
-    else
-        cat "$arquivo_selecionado"
-        num_reclamacoes=$(wc -l < "$arquivo_selecionado")
-    fi
-
-    # Imprime informações relevantes
-    echo "+++ Arquivo atual: $arquivo_selecionado"
-    print_filtros
-    echo "+++ Número de reclamações: $num_reclamacoes"
-    echo $sep
 
     cd ..
-}
-
-
-print_filtros() {
-    # Mostra os filtros aplicados no momento
-    total_filtros=${#filtros[@]}
-    local counter=1
-    echo "+++ Filtros atuais:"
-    for filtro in "${filtros[@]}"; do
-        if [[ "$counter" -ne "$total_filtros" ]]; then
-            echo -n "$filtro | "
-        else
-            echo "$filtro"
-        fi
-        ((counter++))
-    done
-} 
-
-
-filtrar_linhas() {
-    # Itera sobre o arquivo e marca as linhas que não contêm o valor do filtro como inválidas
-    linhas_invalidas=()  # Reinicializa o array de linhas inválidas
-    local counter=1
-    valores_filtrados=()
-    # Lê o arquivo, começando a partir da segunda linha para ignorar o cabeçalho
-    while IFS= read -r line; do
-        # Verifica se a linha já está marcada como inválida
-        if [[ -z "${linhas_invalidas[$counter]}" ]]; then
-            # Extrai a coluna escolhida e verifica se contém o valor de `option`
-            valor_coluna=$(echo "$line" | cut -d ';' -f "$coluna_numero")
-            if [[ "$valor_coluna" != "$option" ]]; then
-                # Marca a linha como inválida, armazenando seu índice
-                linhas_invalidas[$counter]=1
-            fi
-        fi
-        ((counter++))
-    done < <(tail -n +2 "$arquivo_selecionado")
-}
-
-menu_principal() {
-    # Mostra as opções gerais de operações do bot
-    echo "Escolha uma opção de operação:"
-    select operacao in "${operacoes[@]}"; do
-        if [[ -n "$operacao" ]]; then
-            break
-        else
-            echo "Valor inválido. Tente novamente."
-        fi
-    done
 }
 
 mostrar_duracao_media_reclamacao() {
@@ -237,7 +155,7 @@ mostrar_duracao_media_reclamacao() {
 
     local soma_das_duracoes=0
 
-    # Filtra e prepara o arquivo com as colunas 1 e 13
+    # Filtra e prepara o arquivo com as colunas 1 e 13 (datas)
     if [ -n "${valores_filtrados[*]}" ]; then
         tail -n +2 "$arquivo_selecionado" > copia.txt
         for line in "${valores_filtrados[@]}"; do
@@ -272,12 +190,12 @@ mostrar_duracao_media_reclamacao() {
     # Cálculo da média em dias
     duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / ($num_reclamacoes * 86400)")
 
+    # Imprime imnformações em relevantes
     echo "+++ Duração média da reclamação: $duracao_media dias"
     echo "$sep"
     rm colunas_data.txt
     cd ..
 }
-
 
 mostrar_ranking_reclamacoes() {
     cd Dados
@@ -321,26 +239,14 @@ mostrar_ranking_reclamacoes() {
         cut -d";" -f $coluna_numero "$arquivo_selecionado" > temp.txt
     fi
 
-    declare -A contagem
-
+    # Conta quantas vezes cada valor aparece
     sort temp.txt | uniq -c | sort -nr | head -n 5 > ranking.txt
-
-    # for valor in "${valores[@]}"; do
-    #     # Contando o número de linhas que contêm o valor
-    #     num_linhas=$(grep -c "$valor" "ranking.txt")
-    #     # Armazenando a contagem
-    #     contagem["$valor"]=$num_linhas
-    # done
-
-    # for valor in "${!contagem[@]}"; do
-    #     echo "${contagem[$valor]} $valor "
-    # done | sort -nr | head -n 5 > ranking.txt
-
 
     # Imprime o ranking na formatação correta
     while IFS= read -r line; do
        echo "   $line"
     done < ranking.txt
+    echo "$sep"
 
     # Remove os arquivos temporários
     rm ranking.txt
@@ -348,11 +254,68 @@ mostrar_ranking_reclamacoes() {
     rm copia.txt
     rm valores.txt
 
-
-    echo "$sep"
     cd ..
-
 }
+
+mostrar_reclamacoes() {
+    cd Dados
+
+    # Lê o arquivo e imprime apenas linhas válidas
+    if [ -n "${valores_filtrados[*]}" ]; then
+        tail -n +2 "$arquivo_selecionado" > copia.txt
+        for line in "${valores_filtrados[@]}"; do
+            grep "$line" copia.txt > temp.txt
+            cp temp.txt copia.txt
+        done
+        cat copia.txt
+        [ -f "temp.txt" ] && rm "temp.txt"
+        num_reclamacoes=$(wc -l < copia.txt)
+        rm copia.txt
+    else
+        cat "$arquivo_selecionado"
+        num_reclamacoes=$(wc -l < "$arquivo_selecionado")
+    fi
+
+    # Imprime informações relevantes
+    echo "+++ Arquivo atual: $arquivo_selecionado"
+    print_filtros
+    echo "+++ Número de reclamações: $num_reclamacoes"
+    echo $sep
+
+    cd ..
+}
+
+
+print_filtros() {
+    # Mostra os filtros aplicados no momento
+    total_filtros=${#filtros[@]}
+    local counter=1
+    echo "+++ Filtros atuais:"
+    for filtro in "${filtros[@]}"; do
+        if [[ "$counter" -ne "$total_filtros" ]]; then
+            echo -n "$filtro | "
+        else
+            echo "$filtro"
+        fi
+        ((counter++))
+    done
+}
+
+
+menu_principal() {
+    # Mostra as opções gerais de operações do bot
+    echo "Escolha uma opção de operação:"
+    select operacao in "${operacoes[@]}"; do
+        if [[ -n "$operacao" ]]; then
+            break
+        else
+            echo "Valor inválido. Tente novamente."
+        fi
+    done
+}
+
+
+
 
 #####################################################
 
@@ -371,13 +334,10 @@ operacoes=(
 operacao_selecionada="selecionar_arquivo"
 sep="+++++++++++++++++++++++++++++++++++++++"
 
-num_linhas=0
 num_reclamacoes=0
 
 filtros=()
-linhas_invalidas=()
 valores_filtrados=()
-
 
 #####################################################
 
@@ -440,9 +400,8 @@ if [ ! -d "Dados" ]; then
 fi
 
 # Calcula a quantidade de linhas do arquivo selecionado inicial
-num_linhas=$(wc -l < "./Dados/${arquivo_selecionado}")
-((num_linhas--))
-num_reclamacoes=$num_linhas
+num_reclamacoes=$(wc -l < "./Dados/${arquivo_selecionado}")
+((num_reclamacoes--))
 echo ""
 
 # Loop principal do bot, executado até o usuário selecionar "sair"
