@@ -230,38 +230,42 @@ mostrar_duracao_media_reclamacao() {
 
     echo ""
 
-    local counter=1
     local soma_das_duracoes=0
 
+    # Filtra e prepara o arquivo com as colunas 1 e 13
     if [ -n "${valores_filtrados[*]}" ]; then
         regex=$(IFS=\|; echo "${valores_filtrados[*]}")
-
         grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f 1,13 > colunas_data.txt
-
     else
         cut -d";" -f 1,13 "$arquivo_selecionado" > colunas_data.txt
-
     fi
 
+    # Conta o número de reclamações (linhas)
     num_reclamacoes=$(wc -l < colunas_data.txt)
 
-    # Leitura linha a linha do arquivo
-    soma_das_duracoes=$(awk -F';' '{
-        data1 = $1
-        data2 = $2
-        diff = (system("echo $(date -d " data2 " +%s) - $(date -d " data1 " +%s) | bc") + 0)
-        soma += diff
-    } END {print soma}' colunas_data.txt)
-    
-    # Cálculo da média
-    duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / (86400 * $num_reclamacoes)")
+    # Verifica se há linhas para processar
+    if [ "$num_reclamacoes" -eq 0 ]; then
+        echo "+++ Nenhuma reclamação encontrada."
+        echo "$sep"
+        cd ..
+        return
+    fi
 
+    # Calcula a soma das durações em segundos
+    while IFS=';' read -r data1 data2; do
+        diff=$(bc <<< "$(date -d "$data2" +%s) - $(date -d "$data1" +%s)")
+        soma_das_duracoes=$(bc <<< "$soma_das_duracoes + $diff")
+    done < colunas_data.txt
+
+    # Cálculo da média em dias
+    duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / ($num_reclamacoes * 86400)")
 
     echo "+++ Duração média da reclamação: $duracao_media dias"
     echo "$sep"
 
     cd ..
 }
+
 
 mostrar_ranking_reclamacoes() {
     cd Dados
