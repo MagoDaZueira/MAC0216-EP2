@@ -21,6 +21,7 @@ selecionar_arquivo() {
     # Zera filtros
     filtros=()
     linhas_invalidas=()
+    valores_filtrados=()
 
     # Cria um vetor com os nomes de arquivos no diretório Dados
     mapfile -t arquivos < <(ls)
@@ -121,7 +122,7 @@ adicionar_filtro_coluna() {
                 cut -d';' -f $coluna_numero copia.txt > /dev/null
                 [ -f "temp.txt" ] && rm "temp.txt"
 
-                num_reclamacoes=$(wc -l < copia.txt)
+                num_reclamacoes=$(wc -l < copia.txt | tr -d ' ')
                 rm copia.txt
                 echo "+++ Número de reclamações: ${num_reclamacoes}"
                 echo $sep
@@ -245,10 +246,16 @@ mostrar_duracao_media_reclamacao() {
     num_reclamacoes=$(wc -l < colunas_data.txt)
 
     # Leitura linha a linha do arquivo
-    soma_das_duracoes=$(awk -F';' '{soma += $2 - $1} END {print soma}' colunas_data.txt)
+    soma_das_duracoes=$(awk -F';' '{
+        data1 = $1
+        data2 = $2
+        diff = (system("echo $(date -d " data2 " +%s) - $(date -d " data1 " +%s) | bc") + 0)
+        soma += diff
+    } END {print soma}' colunas_data.txt)
     
     # Cálculo da média
-    duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / $num_reclamacoes")
+    duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / (86400 * $num_reclamacoes)")
+
 
     echo "+++ Duração média da reclamação: $duracao_media dias"
     echo "$sep"
