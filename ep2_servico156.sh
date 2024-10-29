@@ -316,36 +316,35 @@ mostrar_ranking_reclamacoes() {
         mapfile -t valores < valores.txt
     
 
-        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f $coluna_numero > ranking.txt
+        grep -E "$regex" "$arquivo_selecionado" | cut -d";" -f $coluna_numero > temp.txt
     else
-        cut -d";" -f $coluna_numero "$arquivo_selecionado" > ranking.txt
+        cut -d";" -f $coluna_numero "$arquivo_selecionado" > temp.txt
     fi
 
     declare -A contagem
 
-    # Iterando sobre o array
-    for valor in "${valores[@]}"; do
-        # Contando o número de linhas que contêm o valor
-        num_linhas=$(grep -c "$valor" "ranking.txt")
-        # Armazenando a contagem
-        contagem["$valor"]=$num_linhas
-    done
+    sort temp.txt | uniq -c | sort -nr | head -n 5 > ranking.txt
 
-    for valor in "${!contagem[@]}"; do
-        echo "$valor: ${contagem[$valor]}"
-    done | sort -u -t: -k2 -nr | head -n 5
+    # for valor in "${valores[@]}"; do
+    #     # Contando o número de linhas que contêm o valor
+    #     num_linhas=$(grep -c "$valor" "ranking.txt")
+    #     # Armazenando a contagem
+    #     contagem["$valor"]=$num_linhas
+    # done
 
-    
-    echo $sep
+    # for valor in "${!contagem[@]}"; do
+    #     echo "${contagem[$valor]} $valor "
+    # done | sort -nr | head -n 5 > ranking.txt
 
 
     # Imprime o ranking na formatação correta
-    #while IFS= read -r line; do
-     #   echo "   $line"
-    #done < ranking.txt
+    while IFS= read -r line; do
+       echo "   $line"
+    done < ranking.txt
 
     # Remove os arquivos temporários
     rm ranking.txt
+    rm temp.txt
     rm copia.txt
     rm valores.txt
 
@@ -397,6 +396,10 @@ if [ $# != 0 ]; then
     if [ ! -e "$1" ]; then
         echo "ERRO: O arquivo $1 não existe."
         exit 1
+    fi
+
+    if [ -d "Dados" ]; then
+        rm -rf Dados
     fi
 
     mkdir Dados  # Diretório que armazenará os csv
