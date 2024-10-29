@@ -246,7 +246,6 @@ mostrar_duracao_media_reclamacao() {
 
     # Leitura linha a linha do arquivo
     soma_das_duracoes=$(awk -F';' '{soma += $2 - $1} END {print soma}' colunas_data.txt)
-    sleep 3000
     
     # Cálculo da média
     duracao_media=$(bc <<< "scale=0; $soma_das_duracoes / $num_reclamacoes")
