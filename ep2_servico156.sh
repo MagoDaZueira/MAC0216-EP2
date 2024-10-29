@@ -75,14 +75,14 @@ adicionar_filtro_coluna() {
 
     # Cria um arquivo com os valores da coluna selecionada, ignorando linhas inválidas
     if [ ${#valores_filtrados[@]} -eq 0 ]; then
-        tail -n +2 "$arquivo_selecionado" | cut -d';' -f $coluna_numero | sort -u -f | grep -v "^$" > valores.txt
+        tail -n +2 "$arquivo_selecionado" | cut -d';' -f $coluna_numero | sort -f | uniq | grep -v "^$" > valores.txt
     else
         tail -n +2 "$arquivo_selecionado" > copia.txt
         for line in "${valores_filtrados[@]}"; do
             grep "$line" copia.txt > temp.txt
             cp temp.txt copia.txt
         done
-        cut -d';' -f $coluna_numero copia.txt | sort -u -f | grep -v "^$" > valores.txt
+        cut -d';' -f $coluna_numero copia.txt | sort -f | uniq | grep -v "^$" > valores.txt
         [ -f "temp.txt" ] && rm "temp.txt"
     fi
     mapfile -t options < valores.txt 
